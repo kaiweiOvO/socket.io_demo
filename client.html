@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap@3.3.7/dist/css/bootstrap.min.css"
+      integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u"
+      crossorigin="anonymous"
+    />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+      }
+      #greet-container {
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        left: 0;
+        margin-top: 0;
+        transition: 0.5;
+        background-color: #fff;
+        z-index: 10;
+      }
+      .greet {
+        position: relative;
+        max-width: 300px;
+        left: 50%;
+        top: 25%;
+        transform: translate(-50%);
+        text-align: center;
+      }
+      .greet input {
+        margin-top: 15px;
+      }
+      .chat-container {
+        border: 1px solid black;
+        height: 100vh;
+      }
+      .chat {
+        height: calc(95vh - 69px);
+      }
+      .user-wrapper {
+        float: left;
+        width: 30%;
+        height: 100%;
+        border: 1px solid black;
+      }
+      .user-list {
+        height: calc(100% - 20px);
+        overflow-y: scroll;
+        list-style-type: none;
+        border: none;
+      }
+      .message-wrapper {
+        float: left;
+        width: 68%;
+        height: 100%;
+        margin-left: 2%;
+        border: 1px solid black;
+      }
+      .message {
+        height: calc(100% - 34px);
+        overflow-y: scroll;
+      }
+      .message p {
+        white-space: pre-wrap;
+        word-wrap: break-word;
+      }
+      #send {
+        cursor: pointer;
+      }
+      .top {
+        /* margin-top: -100% !important; */
+        display: none;
+        opacity: 0;
+        transition: 0.5s;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="greet-container">
+      <div class="greet">
+        <h2>let's chat</h2>
+        <input type="text" class="form-control" id="name" placeholder="type your name here..." />
+        <input type="button" class="btn-info btn" id="submit" value="let's chat!" />
+      </div>
+    </div>
+    <div class="chat-container container">
+      <h1 id="title">let's chat</h1>
+      <div class="chat">
+        <div class="user-wrapper">
+          <b>3 user online</b>
+          <ul class="user-list"></ul>
+        </div>
+        <div class="message-wrapper">
+          <div class="message"></div>
+          <div class="input-group">
+            <input
+              id="input"
+              type="text"
+              class="form-control"
+              placeholder="type message here..."
+              aria-describedby="send"
+            />
+            <span class="input-group-addon" id="send">send</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.3.1/socket.io.js"></script>
+    <script>
+      const socket = io("http://localhost:3003");
+      window.onload = function () {
+        let username = "";
+
+        // 登陆
+        document.querySelector("#submit").addEventListener("click", () => {
+          let name = document.querySelector("#name").value;
+          if (name === "") {
+            // 提醒动画
+            document.querySelector("#name").animate(shack, {
+              duration: 300,
+              easing: "linear",
+            });
+          } else {
+            // 登陆
+            username = name;
+            socket.emit("login", username);
+            document.querySelector("#title").innerText = `Let's chat ${username}`;
+            document.querySelector("#greet-container").classList.add("top");
+          }
+        });
+
+        // 获取user列表
+        socket.on("user change", users => {
+          const ul = document.querySelector(".user-list");
+          if (ul.hasChildNodes()) ul.innerHTML = "";
+          users.forEach(item => {
+            const li = document.createElement("li");
+            li.id = item;
+            li.innerHTML = item;
+            ul.appendChild(li);
+          });
+        });
+
+        // 用户加入
+        socket.on("join", info => {
+          updateMessage(info, "join", "yellowgreen");
+        });
+
+        // 用户离开
+        socket.on("leave", info => {
+          updateMessage(info, "leave", "red");
+        });
+
+        // 发送信息
+        document.querySelector("#send").addEventListener("click", () => {
+          const message = document.querySelector("#input");
+          if (message.value) {
+            socket.emit("send", { name: username, message: message.value });
+            message.value = "";
+          }
+        });
+        window.addEventListener("keydown", event => {
+          if (event.keyCode === 13) {
+            const message = document.querySelector("#input");
+            if (message.value) {
+              socket.emit("send", { name: username, message: message.value });
+              message.value = "";
+            }
+          }
+        });
+
+        //  更新信息
+        socket.on("update message", info => {
+          updateMessage(info, "say");
+        });
+
+        // 用户注销
+        window.onbeforeunload = function () {
+          socket.emit("user leave", username);
+        };
+      };
+
+      // 更新信息方法
+      const updateMessage = (info, func, color = "#000") => {
+        const p = document.createElement("p");
+        switch (func) {
+          case "say":
+            p.innerText = `${info.name} say: ${info.message}`;
+            break;
+          case "join":
+            p.innerText = `${info} join the chat`;
+            break;
+          case "leave":
+            p.innerText = `${info} left the chat`;
+            break;
+          default:
+            return;
+        }
+        p.style.color = color;
+        const message = document.querySelector(".message");
+        message.appendChild(p);
+        if (message.scrollTop >= message.scrollHeight - message.clientHeight - 35) {
+          message.scrollTop = message.scrollHeight;
+        }
+      };
+
+      const shack = [
+        { transform: "translateX(0px)" },
+        { transform: "translateX(-20px)" },
+        { transform: "translateX(20px)" },
+        { transform: "translateX(-10px)" },
+        { transform: "translateX(10px)" },
+        { transform: "translateX(0px)" },
+      ];
+    </script>
+  </body>
+</html>
